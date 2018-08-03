@@ -8,20 +8,37 @@
 
  - The manifold structure of ARNT is taken from the Manopt package. Further information can be found on the website www.manopt.org. We thank the authors for kindly sharing their codes. Their specific licenses should be considered before modifying and/or redistributing them.
 
-    ​
+Applications have been solved by these solvers:
+
+- Homogeneous polynomial optimization problems with multiple spherical constraints：
+  $$\max \;  \sum_{1\le i\le n_1, 1\le j \le n_2, 1 \le k \le n_3, 1\le l \le n_4} a_{ijkl} x_i y_j z_k w_l \;  s.t., \|x\|_2 = \|y\|_2 = \|z\|_2 = \|w\|_2= 1,$$
+  where $A = (a_{ijkl})$ is a fourth-order tensor of size $n\times n \times n\times n$.
+- Maxcut SDP: $\min  \mathrm{Tr}(CX), s.t., X_{ii}=1, X \succeq 0$
+- SDP: $\min \mathrm{Tr}(CX), s.t., \mathrm{Tr}(X)=1, X \succeq 0 $
+- Low-Rank Nearest Correlation  Estimation: $ \min_{ X \succeq 0} \; \frac{1}{2} \| H \odot (X - C) \|_F^2, \; X_{ii} = 1, \; i = 1, \ldots, n, \; \mathrm{rank}(X) \le p.$
+- The Bose–Einstein condensates (BEC) problem
+- Linear eigenvalue problems: $\min \mathrm{Tr}(X^{\top}AX), s.t., X^{\top}X =I $
+- The electronic structure calculation: the Kohn-Sham total energy minimization and the Hartree-Fock total energy minimization
+- Quadratic assignment problem
+- Harmonic energy minimization
 
  # References
- - [Jiang Hu, Andre Milzarek, Zaiwen Wen, Yaxiang Yuan. Adaptive Regularized Newton Method for Riemannian Optimization. arXiv:1708.02016](https://arxiv.org/abs/1708.02016)
+- [Jiang Hu, Andre Milzarek, Zaiwen Wen, Yaxiang Yuan. Adaptive Regularized Newton Method for Riemannian Optimization. SIAM Journal on Scientific Computing](https://arxiv.org/abs/1708.02016)
 
- - [Zaiwen Wen and Wotao Yin. A feasible method for optimization with orthogonality constraints. Mathematical Programming (2013): 397-434.](https://link.springer.com/article/10.1007/s10107-012-0584-1)
+- [Zaiwen Wen and Wotao Yin. A feasible method for optimization with orthogonality constraints. Mathematical Programming (2013): 397-434.](https://link.springer.com/article/10.1007/s10107-012-0584-1)
 
- - [Zaiwen Wen, Andre Milzarek, Michael Ulbrich and Hongchao Zhang, Adaptive regularized self-consistent field iteration with exact Hessian for electronic structure calculation. SIAM Journal on Scientific Computing (2013), A1299-A1324.](https://doi.org/10.1137/120894385)
+- [Zaiwen Wen, Andre Milzarek, Michael Ulbrich and Hongchao Zhang, Adaptive regularized self-consistent field iteration with exact Hessian for electronic structure calculation. SIAM Journal on Scientific Computing (2013), A1299-A1324.](https://doi.org/10.1137/120894385)
 
- - [Xinming Wu, Zaiwen Wen, and Weizhu Bao. A regularized Newton method for computing ground states of Bose–Einstein condensates. Journal of Scientific Computing (2017): 303-329.](https://link.springer.com/article/10.1007/s10915-017-0412-0)
+- [Xinming Wu, Zaiwen Wen, and Weizhu Bao. A regularized Newton method for computing ground states of Bose–Einstein condensates. Journal of Scientific Computing (2017): 303-329.](https://link.springer.com/article/10.1007/s10915-017-0412-0)
 
- - [Nicolas Boumal , Bamdev Mishra, P.-A. Absil and Rodolphe Sepulchre. Manopt, a Matlab Toolbox for Optimization on Manifolds. Journal of Machine Learning Research (2014) 1455-1459](http://jmlr.org/papers/v15/boumal14a.html)
+- X. Zhang, J. Zhu, Z. Wen, A. Zhou, Gradient-type Optimization Methods for Electronic Structure Calculation, SIAM Journal on Scientific Computing, Vol. 36, No. 3 (2014), pp. C265-C289
 
-   ​
+- R. Lai, Z. Wen, W. Yin, X. Gu, L. Lui, Folding-Free Global Conformal Mapping for Genus-0 Surfaces by Harmonic Energy Minimization, Journal of Scientfic Computing, 58(2014), 705-725
+  
+- [Nicolas Boumal , Bamdev Mishra, P.-A. Absil and Rodolphe Sepulchre. Manopt, a Matlab Toolbox for Optimization on Manifolds. Journal of Machine Learning Research (2014) 1455-1459](http://jmlr.org/papers/v15/boumal14a.html)
+
+
+
 
  # The Authors
  We hope that the package is useful for your application.  If you have any bug reports or comments, please feel free to email one of the toolbox authors:
