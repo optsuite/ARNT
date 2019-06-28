@@ -23,7 +23,7 @@ Applications have been solved by these solvers:
 - Harmonic energy minimization
 
  # References
-- [Jiang Hu, Andre Milzarek, Zaiwen Wen, Yaxiang Yuan. Adaptive Regularized Newton Method for Riemannian Optimization. SIAM Journal on Scientific Computing](https://arxiv.org/abs/1708.02016)
+- [Jiang Hu, Andre Milzarek, Zaiwen Wen, Yaxiang Yuan. Adaptive Quadratically Regularized Newton Method for Riemannian Optimization. SIAM Journal on Matrix Analysis and Applications, Vol. 39, No. 3, pp. 1181–1207](https://epubs.siam.org/doi/10.1137/17M1142478)
 
 - [Zaiwen Wen and Wotao Yin. A feasible method for optimization with orthogonality constraints. Mathematical Programming (2013): 397-434.](https://link.springer.com/article/10.1007/s10107-012-0584-1)
 
