@@ -25,6 +25,8 @@ Applications have been solved by these solvers:
  # References
 - [Jiang Hu, Andre Milzarek, Zaiwen Wen, Yaxiang Yuan. Adaptive Quadratically Regularized Newton Method for Riemannian Optimization. SIAM Journal on Matrix Analysis and Applications, Vol. 39, No. 3, pp. 1181–1207](https://epubs.siam.org/doi/10.1137/17M1142478)
 
+- [Jiang Hu, Bo Jiang, Lin Lin, Zaiwen Wen, Yaxiang Yuan. Structured Quasi-Newton Methods for Optimization with Orthogonality Constraints. SIAM Journal on Scientific Computing](https://arxiv.org/abs/1809.00452)
+
 - [Zaiwen Wen and Wotao Yin. A feasible method for optimization with orthogonality constraints. Mathematical Programming (2013): 397-434.](https://link.springer.com/article/10.1007/s10107-012-0584-1)
 
 - [Zaiwen Wen, Andre Milzarek, Michael Ulbrich and Hongchao Zhang, Adaptive regularized self-consistent field iteration with exact Hessian for electronic structure calculation. SIAM Journal on Scientific Computing (2013), A1299-A1324.](https://doi.org/10.1137/120894385)
