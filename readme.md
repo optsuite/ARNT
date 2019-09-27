@@ -1,5 +1,5 @@
  # ARNT beta 1.1
- Some modifications in arnt.m and RNewton.m are added to make ARNT more stable, especially when require solutions with high accuracy.
+ The algorithms in arnt.m and RNewton.m are modified to be more stable, especially when a high accuracy is required.
 
  # ARNT beta 1.0
  A MATLAB software for solving optimization problems on manifold.
