@@ -6,39 +6,42 @@ function test_ncm
 
 % equivalent form (the formulation we solved below)
 % X = V'V, V = [V_1, ..., V_n], V is a p by n matrix
-% min .5*||H.*(V'*V - G)||_F^2, s.t. ||V_i|| = 1, i = 1, ..., n  
+% min .5*||H.*(V'*V - G)||_F^2, s.t. ||V_i|| = 1, i = 1, ..., n
 %
-% Data 'Eg5.5H' and 'Eg5.5C' can be download from 
+% Data 'Eg5.5H' and 'Eg5.5C' can be download from
 % http://www.grouplens.org/node/73, the other data set 'Leukemia' is
-% referred from Li, Lu, and Kim-Chuan Toh. "An inexact interior point method 
-% for l_1-regularized sparse covariance selection." Mathematical 
-% Programming Computation 2.3 (2010): 291-315. 
-% 
+% referred from Li, Lu, and Kim-Chuan Toh. "An inexact interior point method
+% for l_1-regularized sparse covariance selection." Mathematical
+% Programming Computation 2.3 (2010): 291-315.
+%
 % -----------------------------------------------------------------------
-% Reference: 
+% Reference:
 %  J. Hu, A. Milzark, Z. Wen and Y. Yuan
-%  Adaptive Regularized Newton Method for Riemannian Optimization
+%  Adaptive Quadratically Regularized Newton Method for Riemannian Optimization
 %
 % Author: J. Hu, Z. Wen
 %  Version 1.0 .... 2017/8
-
-
+%
+%  Version 1.1 .... 2019/9
 
 % choose examples
-opts = []; seed = 2010;
 % Problist = [1:11];
-Problist = [1]; 
+Problist = 1;
 
 % choose rank
-plist = [5, 10, 20,  50, 100, 150, 200];
-plist = [20];
+% plist = [5, 10, 20,  50, 100, 150, 200];
+plist = 20;
 
 % whether to save the output information, default is 0
-dosave = 0;
+dosave = 1;
+
+% set tolerance for ARNT
+gtol = 1e-6;
 
 for dprob = Problist
     
     % fix seed
+    seed = 2010;
     if exist('RandStream','file')
         RandStream.setGlobalStream(RandStream('mt19937ar','seed',seed));
     else
@@ -58,13 +61,10 @@ for dprob = Problist
         fid = fopen(filename,'w+');
         
         fprintf(fid,'\n');
-        % fprintf(fid,'& \t \\multicolumn{3}{c}{OptM_GBB} & \t \\multicolumn{3}{c}{ARNT} & \t \\multicolumn{3}{c}{RTR}  & \t \\multicolumn{3}{c}{GBB}');
-        fprintf(fid,'& \t \\multicolumn{3}{c|}{GBB} \t \\multicolumn{3}{c|}{AdaGBB} & \t \\multicolumn{3}{c|}{ARNT}  & \t \\multicolumn{3}{c|}{RTR}');
+        fprintf(fid,' & \t \\multicolumn{4}{c|}{ARNT}');
         
         fprintf(fid,'\\\\ \\hline \n');
-        % fprintf(fid,'Prob \t & \t iter & \t nrmG &\t time & \t iter(in) & \t nrmG &\t time & \t iter(in) & \t nrmG &\t time & \t iter(in) & \t nrmG &\t time');
-        fprintf(fid,'Prob \t & \t its & \t nrmG &\t time & \t its & \t nrmG &\t time & \t its & \t nrmG &\t time & \t its & \t nrmG &\t time');
-        
+        fprintf(fid,'Prob \t & fval \t  & \t its \t & \t nrmG    &\t time');
         fprintf(fid,'\\\\ \\hline \n');
     end
     
@@ -144,66 +144,44 @@ for dprob = Problist
             randrot('state',seed); randn('state',seed);
         end
         
+        % obique manifold
+        M = obliquefactory(p,n);
+        
+        % Eulcidean gradient and Hessian
+        opts.hess = @hess;
+        opts.grad = @grad;
+        opts.fun_extra = @fun_extra;
+        
         % initial point
-        x0 = randn(p,n);        
+        x0 = randn(p,n);
         nrmx0 = dot(x0,x0,1);
         x0 = bsxfun(@rdivide, x0, sqrt(nrmx0));
         
-        
-        opts.record = 1;
-        opts.gtol = 1e-6;
-        opts.xtol = 0e-5;
-        opts.ftol = 0e-8;        
-        M = obliquefactory(p,n);
-        opts.hess = @hess;
-        opts.grad = @grad;
-        opts.fun_TR = @fun_sub;
-        opts.fun_extra = @fun_extra;
-        opts.opts_init.record = 1;
-        opts.solver_init = @RGBB;
-        opts.opts_init.tau   = 1e-3;
-        opts.opts_init.maxit = 2000;
-        opts.opts_init.gtol  = opts.gtol*1e3;
-        opts.opts_init.xtol  = opts.xtol*1e2;
-        opts.opts_init.ftol  = opts.ftol*1e2;
-        opts.opts_sub.record = 0;
-        opts.solver_sub  = @RNewton;
-        opts.opts_sub.tau    = 1e-3;
-        opts.opts_sub.maxit  = [100,150,200,300,500];
-        opts.opts_sub.gtol   = opts.gtol*1e0;
-        opts.opts_sub.xtol   = opts.xtol*1e0;
-        opts.opts_sub.ftol   = opts.ftol*1e0;
-        opts.fun_TR = @fun_sub;
-        opts.gtol = 1e-6;
+        % set default parameters for ARNT
+        opts.record = 1; % 0 for slient, 1 for outer iter. info., 2 or more for all iter. info.
+        opts.gtol = gtol;
+        opts.xtol = 1e-12;
+        opts.ftol = 1e-12;
         opts.maxit = 500;
         opts.tau = 10;
         opts.usenumstab = 1;
+        
+        % run ARNT
         recordname = strcat(filepath,filesep,'ARNT_','Date_',...
             num2str(date),'ncm','n',num2str(n),'p',num2str(p),'.txt');
         opts.recordFile = recordname;
-        opts.opts_init.recordFile = opts.recordFile;
-        opts.opts_sub.recordFile = opts.recordFile;
         t = tic; [~, ~, out_ARNT] = arnt(x0, @fun, M, opts); tsolve_ARNT = toc(t);
         
+        % print info. in command line
+        fprintf('ARNT|  f: %8.6e, nrmG: %2.1e, cpu: %4.2f, OutIter: %3d, InnerIter: %4d, nfe: %4d,\n',...
+            out_ARNT.fval, out_ARNT.nrmG, tsolve_ARNT, out_ARNT.iter, sum(out_ARNT.iter_sub), out_ARNT.nfe);
+        
+        % save info.
         if dosave
             name = strcat('ncm-','n-',num2str(n),'-p-',num2str(p));
-            save(strcat(filepath, filesep,'ARNT-',num2str(dprob),'-',name), 'out_ARNT', 'tsolve_ARNT');
-        end
-        
-        OutIter_ARNT = out_ARNT.iter;
-        InnerIter_ARNT = sum(out_ARNT.iter_sub);
-        nfe_ARNT = out_ARNT.nfe;
-        f_ARNT = out_ARNT.fval;
-        nrmG_ARNT = out_ARNT.nrmG;
-        
-        fprintf(1, 'ARNT|  f: %8.6e, nrmG: %2.1e, cpu: %4.2f, OutIter: %3d, InnerIter: %4d, nfe: %4d,\n',...
-            f_ARNT, nrmG_ARNT, tsolve_ARNT, OutIter_ARNT, InnerIter_ARNT, nfe_ARNT);
-        
-        if dosave
-            name = num2str(p);
-            fprintf(fid,'%10s & \t %d(%4.1f) & \t %1.1e &\t %.2f',...
-                name, OutIter_ARNT,InnerIter_ARNT/OutIter_ARNT, nrmG_ARNT, tsolve_ARNT);
-            fprintf(fid,'\\\\ \\hline \n');
+            save(strcat(filepath, filesep,'ARNT-',name), 'out_ARNT', 'tsolve_ARNT');
+            fprintf(fid,'ARNT & %14.8e &%4d(%4.0f)    & \t %1.1e &\t %6.1f \\\\ \\hline \n', ...
+                out_ARNT.fval, out_ARNT.iter, sum(out_ARNT.iter_sub)/out_ARNT.iter, out_ARNT.nrmG, tsolve_ARNT);
         end
         
     end
@@ -225,48 +203,8 @@ end
         end
     end
 
-    function [f,g] = fun_sub(X,data)
-        
-        XP = data.XP;
-        tau = data.TrRho;
-        U = X - XP;
-        %         norm(data.XtX,'fro')
-        UtX = U'*XP;
-        if isfield(data,'XtX')
-            gg = data.gg;
-            tmpG = data.G;
-        else
-            XtX = XP'*XP;
-            if ~exist('H','var') || isempty(H)
-                gg = XtX - G;
-                tmpG = 2*XP*gg;
-            else
-                gg = H.*(XtX - G);
-                tmpG = 2*(XP*(H.*gg));
-            end
-            data.XtX = XtX;
-            data.gg = gg;
-            data.G = tmpG;
-        end
-        
-        if ~exist('H','var') || isempty(H)
-            tmp1 = U*gg;
-            tmp2 = XP*(UtX + UtX');
-        else
-            tmp1 = U*(H.*gg);
-            tmp2 = XP*(H.*(H.*(UtX + UtX')));
-        end
-        h = 2*(tmp1 + tmp2);
-        nrm = norm(U,'fro');
-        f = sum(sum(U.*tmpG)) + .5*sum(sum(h.*U)) + 1/3*nrm^3*tau;
-        g = tmpG + h + tau*nrm*U;
-        %         if narargout > 1
-        %             g = tmpG + h + tau*nrm*U;
-        %         end
-    end
-
     function data = fun_extra(data)
-        
+        % store some intermediate variables to save computations
         XP = data.XP;
         data.XtX = XP'*XP;
         if ~exist('H','var') || isempty(H)
@@ -280,6 +218,7 @@ end
     end
 
     function g = grad(X)
+        % Euclidean gradient
         XtX = X'*X;
         if ~exist('H','var') || isempty(H)
             gg = (XtX - G);
@@ -292,7 +231,7 @@ end
 
 
     function h = hess(X, U, data)
-        
+        % Euclidean Hessian at X along U
         gg = data.gg;
         UtX = U'*X;
         if ~exist('H','var') || isempty(H)

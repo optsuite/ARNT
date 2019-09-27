@@ -1,7 +1,8 @@
-function [x, f, out] = RAdaGBB(x, fun, M, opts, varargin)
+function [x, f, out] = RGBB(x, fun, M, opts, varargin)
 
-% Riemannian adaptive gradient method with BB step size
-%      min f(x)   s.t. x in M
+% Riemannian gradient method with BB step size
+%   min F(x), s.t., x in M
+%
 % Input:
 %           x --- initial guess
 %         fun --- objective function and its gradient:
@@ -29,11 +30,16 @@ function [x, f, out] = RAdaGBB(x, fun, M, opts, varargin)
 % -----------------------------------------------------------------------
 % Reference: 
 %  J. Hu, A. Milzark, Z. Wen and Y. Yuan
-%  Adaptive Regularized Newton Method for Riemannian Optimization
+%  Adaptive Quadratically Regularized Newton Method for Riemannian Optimization
 %
 % Author: J. Hu, Z. Wen
 %  Version 1.0 .... 2017/8
 
+if nargin < 3
+    error('at least three inputs: [x, f, out] = RGBB(x, fun, M, opts)');
+elseif nargin < 4
+    opts = [];
+end
 
 % termination rule
 if ~isfield(opts, 'gtol');      opts.gtol = 1e-6;  end % 1e-5
@@ -41,26 +47,26 @@ if ~isfield(opts, 'xtol');      opts.xtol = 1e-6;  end % 1e-6
 if ~isfield(opts, 'ftol');      opts.ftol = 1e-13; end % 1e-13
 
 % parameters for control the linear approximation in line search,
-if ~isfield(opts, 'alpha');      opts.alpha  = 1e-3;    end
+if ~isfield(opts, 'alpha');     opts.alpha  = 1e-3;   end
 if ~isfield(opts, 'rhols');     opts.rhols  = 1e-6;   end
 if ~isfield(opts, 'eta');       opts.eta  = 0.2;      end
-if ~isfield(opts, 'rho');       opts.rho  = 0.5;      end
 if ~isfield(opts, 'gamma');     opts.gamma  = 0.85;   end
 if ~isfield(opts, 'STPEPS');    opts.STPEPS  = 1e-10; end
 if ~isfield(opts, 'nt');        opts.nt  = 3;         end % 3
 if ~isfield(opts, 'maxit');     opts.maxit  = 200;   end
-if ~isfield(opts, 'eps');       opts.eps = 1e-6;     end
+if ~isfield(opts, 'eps');       opts.eps = 1e-14;     end
 if ~isfield(opts, 'record');    opts.record = 0;      end
 if ~isfield(opts, 'radius');    opts.radius = 1;      end
-if isfield(opts, 'nt');         opts.nt = 5;          end
+if isfield(opts,  'nt');         opts.nt = 5;          end
 
+hasRecordFile = 0;
 if isfield(opts, 'recordFile')
-    fid = fopen(opts.recordFile,'a+');
+    fid = fopen(opts.recordFile,'w+'); hasRecordFile = 1;
 end
 
-% initial guess on manifold
+% initial guess
 if ~exist('x', 'var') || isempty(x)
-    x = M.rand();
+    x = problem.M.rand();
 end
 
 % copy parameters
@@ -75,28 +81,35 @@ gamma = opts.gamma;
 record = opts.record;
 nt = opts.nt;
 alpha = opts.alpha;
-rho = opts.rho;
 
-% initial information
+% initial function value and gradient
 [f,ge] = feval(fun, x, varargin{:});
 g = M.egrad2rgrad(x,ge);
-r = g.*g;
-nrmG = norm(g, 'fro');
 
-out.nfe = 1; Q = 1; Cval = f;  
+% norm
+if isstruct(g)
+    matG = M.tangent2ambient(x,g);
+    nrmG = norm(matG,'fro');
+else
+    nrmG = norm(g,'fro');
+end
 
+if isstruct(x)
+    matX = x.U*x.S*x.V';
+end
+
+% initial iter. information 
+out.nfe = 1; Q = 1; Cval = f; out.fval0 = f;
 
 %% Print iteration header if debug == 1
 
-if isfield(opts,'recordFile')
+if hasRecordFile 
     fprintf(fid,'%4s \t %10s \t %10s \t  %10s \t %10s \t %10s \t %10s \t %10s\n', ...
         'Iter', 'f(X)', 'Cval', 'nrmG', 'XDiff', 'FDiff', 'nls', 'alpha');
 end
 
 if record == 10; out.fvec = f; end
 out.msg = 'exceed max iteration';
-
-d = g./sqrt(r + eps);
 
 if record
     str1 = '    %6s';
@@ -110,13 +123,18 @@ end
 % loop
 for iter = 1:maxit
     
-    xp = x; gp = g; fp = f;
+    xp = x; gp = g; fp = f; 
+    if isstruct(x), matXP = matX; end 
+    if isstruct(g), matGP = matG; end
     nls = 1; deriv = rhols*nrmG^2; 
+    d = M.lincomb(x, -1, g);
+    
+    % curvilinear search
     while 1
-                
-        x = M.retr(xp, d, -alpha);
+        
+        x = M.retr(xp, d, alpha);
         [f,ge] = feval(fun, x, varargin{:});
-
+        
         out.nfe = out.nfe + 1;
         if f <=  Cval - alpha*deriv || nls >= 5
             break
@@ -124,38 +142,47 @@ for iter = 1:maxit
         alpha = eta*alpha;
         nls = nls+1;
     end
-    % Riemannian graident
+    
+    % Riemannian gradient
     g = M.egrad2rgrad(x,ge); 
-
-    % accumuated gradient
-    r = r + g.*g;
-    sqrtr = sqrt(r + eps);
     
     % norm
-    nrmG = norm(g,'fro');
+    if isstruct(g)
+        matG = M.tangent2ambient(x,g);
+        nrmG = norm(matG,'fro');
+    else
+        nrmG = M.norm(x,g);
+    end
+    
     out.nrmGvec(iter) = nrmG;
-    
-    % scaled gradient
-    d = g./sqrtr;
-    
+
     if record == 10; out.fvec = [out.fvec; f]; end
     
-    s = x - xp;
+    % difference of x
+    if isstruct(x)
+        matX = x.U*x.S*x.V';
+        s = matX - matXP;
+    else
+        s = x - xp;
+    end
+    
     XDiff = norm(s,'inf')/alpha; % (relative Xdiff) ~ g
     FDiff = abs(f-fp)/(abs(fp)+1);
     
     % ---- record ----
     if record 
         if iter == 1
-            fprintf('%s', str_head);
+            fprintf('\n%s', str_head);
         end
-        fprintf(str_num, ...
+        fprintf(str_num, iter, f, Cval, nrmG, XDiff, FDiff, nls, alpha);
+    end
+    
+    if hasRecordFile 
+        fprintf(fid,...
+         '%4d\t %14.13e\t %14.13e\t %3.2e\t %3.2e\t %3.2e\t %2d\t %3.2e\n', ...
             iter, f, Cval, nrmG, XDiff, FDiff, nls, alpha);
     end
-    if isfield(opts,'recordFile')
-        fprintf(fid,'%4d \t %14.13e \t %14.13e \t %3.2e \t %3.2e \t %3.2e \t %2d \t %3.2e\n', ...
-            iter, f, Cval, nrmG, XDiff, FDiff, nls, alpha);
-    end
+    
     
     % check stopping
     crit(iter) = FDiff;
@@ -173,19 +200,23 @@ for iter = 1:maxit
         break;
     end
     
+    % difference of gradient
+    if isstruct(g)
+        y = matG - matGP;
+    else
+        y = g - gp;
+    end
+    
     % BB step size
-    dp = gp./sqrtr;
-    y = d - dp;
     sy = abs(iprod(s,y));
-
-    if sy > 0;
-        if mod(iter,2)==0; alpha = sum(sum(s.*s))/sy;
-        else alpha = sy/sum(sum(y.*y)); end
-        % safeguarding on tau
+    if sy > 0
+        if mod(iter,2)==0; alpha = norm(s, 'fro')^2/sy;
+        else alpha = sy/ norm(y, 'fro')^2; end
+        % safeguarding on alpha
         alpha = max(min(alpha, 1e20), 1e-20);
     end
     Qp = Q; Q = gamma*Qp + 1; Cval = (gamma*Qp*Cval + f)/Q;
-       
+           
 end
 out.XDiff = XDiff;
 out.FDiff = FDiff;
@@ -194,8 +225,9 @@ out.nrmG = nrmG;
 out.fval = f;
 out.iter = iter;
 
+% Euclidean inner product
 function a = iprod(x,y)
-    a = real(sum(sum(conj(x).*y)));
+  a = real(sum(sum(conj(x).*y)));
 end
 
 end

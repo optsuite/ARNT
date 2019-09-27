@@ -22,15 +22,17 @@ function [x, out] = RNewton(x0, egrad, rgrad, H, M, opts)
 % -----------------------------------------------------------------------
 % Reference: 
 %  J. Hu, A. Milzark, Z. Wen and Y. Yuan
-%  Adaptive Regularized Newton Method for Riemannian Optimization
+%  Adaptive Quadratically Regularized Newton Method for Riemannian Optimization
 %
 % Author: J. Hu, Z. Wen
 %  Version 1.0 .... 2017/8
+%
+%  Version 1.1 .... 2019/9
 
 
 % termination rule
 if ~isfield(opts, 'gtol');       opts.gtol = 1e-7;   end % 1e-5
-if ~isfield(opts, 'eta');        opts.eta  = .2;     end % 1e-5
+if ~isfield(opts, 'eta');        opts.eta  = 0.2;     end % 1e-5
 if ~isfield(opts, 'rhols');      opts.rhols  = 1e-4;   end
 if ~isfield(opts, 'maxit');      opts.maxit  = 200;    end
 if ~isfield(opts, 'usezero');    opts.usezero = 1;      end
@@ -50,7 +52,7 @@ end
 
 % record iter. info.
 hasRecordFile = 0;
-if isfield(opts, 'recordFile')
+if 0; isfield(opts, 'recordFile')
     fid = fopen(opts.recordFile,'a+'); hasRecordFile = 1;
 end
 
@@ -61,17 +63,17 @@ end
 
 if record || hasRecordFile
     str1 = '  %6s';
-    stra = ['%10s',str1,' %2s',str1,str1,str1,str1,str1,str1,'\n'];
+    stra = ['\n %10s',str1,' %2s',str1,str1,str1,str1,str1,str1,str1,'\n'];
     str_head = sprintf(stra,...
-        'f', 'iters', 'flag', 'tol', 'geta','err','pHp','nls','step');
+        'f', 'iters', 'flag', 'tol', '    geta',' angle',' err','pHp','nls','step');
     str1 = '  %1.1e';
-    str_num = ['%1.6e','  %d','      %d', str1,str1,str1,str1,'  %d',str1,'\n'];
+    str_num = ['%1.6e','    %d','   %d  ', str1,str1,'  %3.0f  ',str1,str1,'   %d ',str1,'\n'];
 end
 
 
 if hasRecordFile
     fprintf(fid,stra, ...
-        'f', 'iters', 'flag', 'tol', 'geta','err','pHp','nls','step');
+        'f', 'iters', 'flag', 'tol', 'geta','angle','err','pHp','nls','step');
 end
 
 % set the initial iter. no.
@@ -100,6 +102,10 @@ end
 
 % inner product between gradient and descent direction
 geta = inner(x0, rgrad,deta);
+angle = acos(geta/M.norm(x0,rgrad)/M.norm(x0,deta))/pi*180;
+
+out.geta = geta;
+out.angle = angle;
 
 % Armijo search with intial step size 1
 nls = 1; deriv = rhols*geta; step = 1;
@@ -118,7 +124,7 @@ while 1
     f = iprod(egrad,xx0) + .5*iprod(Hxx0,xx0);
     out.nfe = out.nfe + 1;
 
-    if f - rreg <= step*deriv || nls >= 5
+    if f - rreg <= step*deriv || nls >= 10
         break;
     end
     step = eta*step;
@@ -131,12 +137,12 @@ out.fval = f; opts.record = 1;
 if record
     fprintf('%s', str_head);    
     fprintf(str_num, ...
-        full(f), iters, flag, gtol, geta, err, pHp, nls, step);  
+        full(f), iters, flag, gtol, geta, angle, err, pHp, nls, step);  
 end
 
 if hasRecordFile
     fprintf(fid, str_num, ...
-        full(f), iters, flag, gtol, geta, err, pHp, nls, step);
+        full(f), iters, flag, gtol, geta, angle, err, pHp, nls, step);
 end
 
 end
@@ -212,12 +218,12 @@ if record
     str_head = sprintf(stra,...
         'iter', 'alpha', 'pHp', 'err');
     str1 = '   %1.2e';
-    str_num = ['   %d', str1,str1,str1,'\n'];
+    str_num = ['%d', str1,str1,str1,'\n'];
 end
 
 % PCG loop
 for iter = 1:maxit
-    % Eclidean Hessian
+    % Euclidean Hessian
     Hp = H(p);
     % Riemannian Hessian
     rHp = M.ehess2rhess(x,grad,Hp,p);
@@ -227,37 +233,41 @@ for iter = 1:maxit
     scalenrmp = 1e-10*nrmp;
     
     % check the stopping criterion, construct the new direction if stopped
-    if pHp <= scalenrmp       
+    if pHp <= scalenrmp      
         if iter == 1; deta = p;
         else
-            if pHp <= -scalenrmp
-                negcur = p; mark = -pHp/nrmp;
+            if  pHp <= -scalenrmp 
+                negcur = p; mark = -pHp/nrmp; 
+                
             end
         end
         flag = -1; out.msg = 'negative curvature';
         break;
     end
-    
-    if abs(pHp) < 1e-20
         
-        out.msg = 'pHp is small';
+    if abs(pHp) < 1e-30
+             
+        flag = -4;
         break;
     else
         alpha = rho/pHp;
         
         if iter == 1
-            deta = M.lincomb(x,alpha,p);
-            Hdeta = M.lincomb(x,alpha,rHp);
+            deta_new = M.lincomb(x,alpha,p);
+            Hdeta_new = M.lincomb(x,alpha,rHp);
         else
-            deta = M.lincomb(x,1,deta, alpha ,p);
-            Hdeta = M.lincomb(x,1,Hdeta,alpha,rHp);
+            deta_new = M.lincomb(x,1,deta, alpha ,p);
+            Hdeta_new = M.lincomb(x,1,Hdeta,alpha,rHp);
         end
-        f_CG_new = - M.inner(x,deta,r0) + .5*M.inner(x,deta,Hdeta);
+        f_CG_new = - M.inner(x,deta_new,r0) + .5*M.inner(x,deta_new,Hdeta_new);
         
         if f_CG_new > f_CG
-            out.msg = 'no decrease in PCG'; break; 
+            out.msg = 'no decrease in PCG';
+            flag = -5;
+            break; 
         else
             f_CG = f_CG_new;
+            deta = deta_new; Hdeta = Hdeta_new;
         end
         r = M.lincomb(x, 1, r ,-alpha, rHp);
     end
@@ -275,8 +285,11 @@ for iter = 1:maxit
     
     % check stagnate and stopping criterion
     if (err < minres); minres = err; end
-    if (err < tol) && (iter > minit);
-        out.msg = 'accuracy'; break; end
+    if (err < tol) && (iter > minit)
+        out.msg = 'accuracy'; 
+        flag = 1;
+        break; 
+    end
     if (iter > stagnate_check) && (iter > 10)
         ratio = resnrm(iter-9:iter+1)./resnrm(iter-10:iter);
         if (min(ratio) > 0.97) && (max(ratio) < 1.03)
@@ -286,7 +299,7 @@ for iter = 1:maxit
         end
     end
     %%-----------------------------
-    if (abs(rho) < 1e-16)
+    if abs(rho) < 1e-30
         flag = -3;
         out.msg = 'rho is small';
         break;
@@ -296,8 +309,14 @@ for iter = 1:maxit
         rho = M.inner(x,r,z);
         beta = rho/rho_old;
         p = M.lincomb(x,1,z, beta, p);
+        
+        % If the tangent vector p is not represented by coordinates, we use
+        % re-projection to improve consistency
+        if ~isstruct(x)
+           p = M.proj(x,p);
+        end
     end
-    
+
 end
 out.alpha = alpha;
 out.beta = beta;

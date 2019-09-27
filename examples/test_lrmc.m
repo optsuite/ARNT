@@ -4,18 +4,23 @@ function test_lrmc
 % index by matrix P, find the lowest-rank matrix to fit A. The problem can
 % be split into a series fixed rank problem as
 % min 0.5*||P.*X - A||_F^2, s.t. rank(X) = k.
-% 
+%
 % -----------------------------------------------------------------------
-% Reference: 
+% Reference:
 %  J. Hu, A. Milzark, Z. Wen and Y. Yuan
-%  Adaptive Regularized Newton Method for Riemannian Optimization
+%  Adaptive Quadratically Regularized Newton Method for Riemannian Optimization
 %
 % Author: J. Hu, Z. Wen
 %  Version 1.0 .... 2017/8
+%
+%  Version 1.1 .... 2019/9
 
 
 % whether to save the output information, default is 0
-dosave = 0;
+dosave = 1;
+
+% set tolerance for ARNT
+gtol = 1e-6;
 
 % test problem setting
 % nlist = [1000, 2000, 4000, 8000];
@@ -35,10 +40,11 @@ if dosave
     
     fid = fopen(filename,'w+');
     
-    fprintf(fid,'\n\n');
-    fprintf(fid,'& \t \\multicolumn{3}{c|}{GBB} & \t \\multicolumn{3}{c|}{ARNT} & \t \\multicolumn{3}{c|}{RTR}');
+    fprintf(fid,'\n');
+    fprintf(fid,' & \t \\multicolumn{4}{c|}{ARNT}');
+    
     fprintf(fid,'\\\\ \\hline \n');
-    fprintf(fid,'Prob \t & \t its & \t nrmG &\t time & \t its & \t nrmG &\t time & \t its & \t nrmG &\t time');
+    fprintf(fid,'Prob \t & fval \t  & \t its \t & \t nrmG    &\t time');
     fprintf(fid,'\\\\ \\hline \n');
 end
 
@@ -71,6 +77,11 @@ for n = nlist
             % manifold of matrices of size mxn of fixed rank k.
             M = fixedrankfactory(m, n, k);
             
+            % identify Eulcidean gradient and Hessian
+            opts.hess = @hess;
+            opts.grad = @grad;
+            opts.fun_extra = @fun_extra;
+            
             % Compute an initial guess. Points on the manifold are represented as
             % structures with three fields: U, S and V. U and V need to be
             % orthonormal, S needs to be diagonal.
@@ -78,61 +89,32 @@ for n = nlist
             X0.U = U;
             X0.S = S;
             X0.V = V;
-                        
-            % specify name to recode the results
-            name = strcat('LRMC-','m-',num2str(m),'-n-',num2str(n),'-k-',num2str(k),'-frac-',strrep(num2str(frac,'%.1f'),'.','-'));
-            opts.hess = @hess;
-            opts.grad = @grad;
-            opts.record = 1;
-            opts.xtol = 0;1e-6;
-            opts.ftol = 0;
-            opts.gtol = 1e-6;
+            
+            % set default parameters for ARNT
+            opts.record = 1; % 0 for slient, 1 for outer iter. info., 2 or more for all iter. info.
+            opts.xtol = 1e-12;
+            opts.ftol = 1e-12;
+            opts.gtol = gtol;
             opts.maxit = 500;
-            opts.fun_extra = @fun_extra;
-            
-            opts.opts_init.record = 1;
-            opts.solver_init = @RGBB;
-            opts.opts_init.tau   = 1e-3;
-            opts.opts_init.maxit = 2000;
-            opts.opts_init.gtol  = opts.gtol*1e3;
-            opts.opts_init.xtol  = opts.xtol*1e2;
-            opts.opts_init.ftol  = opts.ftol*1e2;
-            opts.opts_sub.record = 0;
-            opts.solver_sub  = @RNewton;
-            opts.opts_sub.tau    = 1e-3;
-            opts.opts_sub.maxit  = [100,150,200,300,500];
-            
-            opts.opts_sub.gtol   = opts.gtol*1e0;
-            opts.opts_sub.xtol   = opts.xtol*1e0;
-            opts.opts_sub.ftol   = opts.ftol*1e0;
-            opts.fun_TR = [];
             opts.tau = 1;
-            opts.theta = 1;
+            opts.usenumstab = 1;
             
+            % run ARNT
             recordname = strcat(filepath,filesep,'Date', ...
-                num2str(date),'lrmc','-m-',num2str(m),'-n-',num2str(n),'-k-',num2str(k),'.txt');
+                num2str(date),'lrmc','-m-',num2str(m),'-n-',num2str(n),'-k-',num2str(k),'-frac-',strrep(num2str(frac,'%.1f'),'.','-'),'.txt');
             opts.recordFile = recordname;
-            opts.opts_init.recordFile = opts.recordFile;
-            opts.opts_sub.recordFile = opts.recordFile;
-            
             t0 = tic; [~,~,out_ARNT] = arnt(X0, @fun, M, opts); tsolve_ARNT = toc(t0);
-            
-            if dosave
-                save(strcat(filepath, filesep,'ARNT-',strrep(num2str(frac,'%.1f'),'.','-'),name), 'out_ARNT', 'tsolve_ARNT');
-            end
-            
-            OutIter_ARNT = out_ARNT.iter;
-            InnerIter_ARNT = sum(out_ARNT.iter_sub);
-            nfe_ARNT = out_ARNT.nfe;
-            f_ARNT = out_ARNT.fval;
-            nrmG_ARNT = out_ARNT.nrmG;
-            
+                        
+            % print info. in command line
             fprintf('ARNT|  f: %8.6e, nrmG: %2.1e, cpu: %4.2f, OutIter: %3d, InnerIter: %4d, nfe: %4d,\n',...
-                f_ARNT, nrmG_ARNT, tsolve_ARNT, OutIter_ARNT, InnerIter_ARNT, nfe_ARNT);
+                out_ARNT.fval, out_ARNT.nrmG, tsolve_ARNT, out_ARNT.iter, sum(out_ARNT.iter_sub), out_ARNT.nfe);
             
+            % save info.
             if dosave
-                fprintf(fid,'ARNT & %14.8e &%4d(%4.0f) & \t %1.1e &\t %8.1f \\\\ \\hline \n', ...
-                    f_ARNT, OutIter_ARNT, InnerIter_ARNT/OutIter_ARNT, nrmG_ARNT, tsolve_ARNT);
+                name = strcat('LRMC-','m-',num2str(m),'-n-',num2str(n),'-k-',num2str(k),'-frac-',strrep(num2str(frac,'%.1f'),'.','-'));
+                save(strcat(filepath, filesep,'ARNT-',name), 'out_ARNT', 'tsolve_ARNT');
+                fprintf(fid,'ARNT & %14.8e &%4d(%4.0f)   & \t %1.1e &\t %6.1f \\\\ \\hline \n', ...
+                    out_ARNT.fval, out_ARNT.iter, sum(out_ARNT.iter_sub)/out_ARNT.iter, out_ARNT.nrmG, tsolve_ARNT);
             end
             
         end
@@ -163,7 +145,7 @@ if dosave; fclose(fid);  end
 
 
     function h = hess(X, eta, data)
-      
+        
         if isfield(data, 'sigP')
             sigP = data.sigP;
         end
